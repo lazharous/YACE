@@ -1,3 +1,6 @@
+0.4
+- Support for font and input modified
+
 0.3
 - Video now is supported through OpenGL textures
 

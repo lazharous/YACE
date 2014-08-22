@@ -20,7 +20,7 @@
 // 3. This notice may not be removed or altered from any source distribution.
 //
 // See http://en.wikipedia.org/wiki/CHIP-8 and
-// http://devernay.free.fr/hacks/chip8/C8TECH10.HTM for referenes on the CHIP8
+// http://devernay.free.fr/hacks/chip8/C8TECH10.HTM for references on the CHIP8
 // *******************************************************
 
 #include <stdio.h>
@@ -30,13 +30,33 @@
 #include <SDL_opengl.h>
 
 #define YACE_STACK_SIZE 16
-#define YACE_ROM_SIZE 0xfff
+#define YACE_ROM_SIZE 0xFFF
 #define YACE_SCREEN_WIDTH 640
 #define YACE_SCREEN_HEIGHT 320
 #define YACE_SCREEN_SCALE 10
 
-//typedef unsigned int WORD;
-//typedef unsigned char BYTE;
+// typedef unsigned int WORD;
+// typedef unsigned char BYTE;
+
+BYTE g_font[80] =
+{
+	0xF0, 0x90, 0x90, 0x90, 0xF0, //0
+	0x20, 0x60, 0x20, 0x20, 0x70, //1
+	0xF0, 0x10, 0xF0, 0x80, 0xF0, //2
+	0xF0, 0x10, 0xF0, 0x10, 0xF0, //3
+	0x90, 0x90, 0xF0, 0x10, 0x10, //4
+	0xF0, 0x80, 0xF0, 0x10, 0xF0, //5
+	0xF0, 0x80, 0xF0, 0x90, 0xF0, //6
+	0xF0, 0x10, 0x20, 0x40, 0x40, //7
+	0xF0, 0x90, 0xF0, 0x90, 0xF0, //8
+	0xF0, 0x90, 0xF0, 0x10, 0xF0, //9
+	0xF0, 0x90, 0xF0, 0x90, 0x90, //A
+	0xE0, 0x90, 0xE0, 0x90, 0xE0, //B
+	0xF0, 0x80, 0x80, 0x80, 0xF0, //C
+	0xE0, 0x90, 0x90, 0x90, 0xE0, //D
+	0xF0, 0x80, 0xF0, 0x80, 0xF0, //E
+	0xF0, 0x80, 0xF0, 0x80, 0x80  //F
+};
 
 // **********************************
 // Structure holding the Chip8 state
@@ -112,17 +132,24 @@ void YACE_DecodeFXNNOpcode(SCHIP8 *ctx, WORD opcode);
 // ***************
 void YACE_Message(void)
 {
-	printf("YACE v0.3 BUILD 140822\n"
+	printf("YACE v0.4 BUILD 140822\n"
 		   "Usage: yace ROM\n");
 }
 
 void YACE_Reset(SCHIP8 *ctx)
 {
+	int i;
+
 	memset(ctx->Stack, 0, YACE_STACK_SIZE);
 	memset(ctx->RAM, 0, YACE_ROM_SIZE);
+
+	// Copy the font in RAM
+	for (i = 0; i < 80; i++)
+		ctx->RAM[i] = g_font[i];
+
 	memset(ctx->Key, 0, 16);
 	ctx->I = 0;
-	ctx->PC = 512;
+	ctx->PC = 0x200;
 	ctx->SP = 0;
 	ctx->delayTimer = 0;
 	ctx->soundTimer = 0;
@@ -519,7 +546,7 @@ int YACE_GetInput(SCHIP8 *ctx)
 			switch (evt.key.keysym.sym)
 			{
 				case SDLK_LEFT:
-					key = 4;
+					key = 9;
 					break;
 				case SDLK_UP:
 					key = 1;
@@ -528,7 +555,7 @@ int YACE_GetInput(SCHIP8 *ctx)
 					key = 6;
 					break;
 				case SDLK_DOWN:
-					key = 9;
+					key = 4;
 					break;
 			}
 
@@ -545,7 +572,7 @@ int YACE_GetInput(SCHIP8 *ctx)
 			switch (evt.key.keysym.sym)
 			{
 				case SDLK_LEFT:
-					key = 4;
+					key = 9;
 					break;
 				case SDLK_UP:
 					key = 1;
@@ -554,7 +581,7 @@ int YACE_GetInput(SCHIP8 *ctx)
 					key = 6;
 					break;
 				case SDLK_DOWN:
-					key = 9;
+					key = 4;
 					break;
 			}
 
