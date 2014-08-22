@@ -132,7 +132,7 @@ void YACE_DecodeFXNNOpcode(SCHIP8 *ctx, WORD opcode);
 // ***************
 void YACE_Message(void)
 {
-	printf("YACE v0.4 BUILD 140822\n"
+	printf("YACE v0.5 BUILD 140822\n"
 		   "Usage: yace ROM\n");
 }
 
@@ -366,10 +366,10 @@ void YACE_ExecuteCXNNOpcode(SCHIP8 *ctx, WORD opcode)
 // All drawing is XOR drawing (e.g. it toggles the screen pixels)
 void YACE_ExecuteDXYNOpcode(SCHIP8 *ctx, WORD opcode)
 {
-	int yline, xline;
-	int xcoord = ctx->V[(opcode & 0x0F00) >> 8];
-	int ycoord = ctx->V[(opcode & 0x00F0) >> 4];
-	int height = opcode & 0x000F;
+	WORD yline, xline;
+	WORD xcoord = ctx->V[(opcode & 0x0F00) >> 8];
+	WORD ycoord = ctx->V[(opcode & 0x00F0) >> 4];
+	WORD height = opcode & 0x000F;
 
 	ctx->V[0xF] = 0;
 
@@ -382,10 +382,10 @@ void YACE_ExecuteDXYNOpcode(SCHIP8 *ctx, WORD opcode)
 		{
 			if ((data & (128 >> xline)) != 0)
 			{
-				int x = (xline + xcoord) % 64;
-				int y = (yline + ycoord) % 32;
+				WORD x = (xline + xcoord) % 32;
+				WORD y = (yline + ycoord) % 64;
 
-				if (ctx->Video[y][x][0] == 0)
+				if (ctx->Video[y][x][0] == 0xFF)
 					ctx->V[0xF] = 1;
 
 				ctx->Video[y][x][0] ^= 0xFF;
@@ -606,9 +606,9 @@ void YACE_InitScreen(SCHIP8 *ctx)
 
 	SDL_GL_CreateContext(ctx->Window);
 
+	glViewport(0, 0, YACE_SCREEN_WIDTH, YACE_SCREEN_HEIGHT);
 	glMatrixMode(GL_MODELVIEW);
 	glLoadIdentity();
-	glViewport(0, 0, YACE_SCREEN_WIDTH , YACE_SCREEN_HEIGHT );
 	glOrtho(0, YACE_SCREEN_WIDTH, YACE_SCREEN_HEIGHT, 0, -1.0, 1.0);
 	glClearColor(0x40, 0x40, 0x40, 1.0);
 
@@ -668,7 +668,7 @@ void YACE_EndScene(SCHIP8 *ctx)
 
 void YACE_PlaySound(void)
 {
-	printf("\a");
+	// printf("\a");
 }
 
 void YACE_Loop(SCHIP8 *ctx)
@@ -723,7 +723,6 @@ int main(int argc, char *argv[])
 	// load the ROM in RAM starting from 0x200 until 0xfff
 	YACE_OpenROM(emu, argv[1]);
 	YACE_InitScreen(emu);
-	YACE_BeginScene();
 
 	YACE_Loop(emu);
 
