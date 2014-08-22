@@ -14,8 +14,8 @@
 
 #define YACE_STACK_SIZE 16
 #define YACE_ROM_SIZE 0xfff
-#define YACE_SCREEN_WIDTH 64
-#define YACE_SCREEN_HEIGHT 32
+#define YACE_SCREEN_WIDTH 640
+#define YACE_SCREEN_HEIGHT 320
 #define YACE_SCREEN_SCALE 10
 
 //typedef unsigned int WORD;
@@ -48,7 +48,7 @@ typedef struct _SCHIP8
 	// Sound Timer, count down to 0 at 60Hz
 	WORD soundTimer;
 	// Video Screen
-	BYTE Video[YACE_SCREEN_WIDTH * YACE_SCREEN_SCALE][YACE_SCREEN_WIDTH * YACE_SCREEN_SCALE][3];
+	BYTE Video[YACE_SCREEN_WIDTH][YACE_SCREEN_WIDTH][3];
 	// Window for screen
 	SDL_Window *Window;
 } SCHIP8;
@@ -156,9 +156,9 @@ void YACE_Decode0NNNOpcode(SCHIP8 *ctx, WORD opcode)
 			{
 				for (j = 0; j < YACE_SCREEN_HEIGHT; j++)
 				{
-					ctx->Video[j][i][0] = 0xFF;
-					ctx->Video[j][i][1] = 0xFF;
-					ctx->Video[j][i][2] = 0xFF;
+					ctx->Video[j][i][0] = 0;
+					ctx->Video[j][i][1] = 0;
+					ctx->Video[j][i][2] = 0;
 				}
 			}
 		} break;
@@ -315,9 +315,8 @@ void YACE_ExecuteCXNNOpcode(SCHIP8 *ctx, WORD opcode)
 // All drawing is XOR drawing (e.g. it toggles the screen pixels)
 void YACE_ExecuteDXYNOpcode(SCHIP8 *ctx, WORD opcode)
 {
-	const int SCALE = 10;
-	int xcoord = ctx->V[(opcode & 0x0F00) >> 8] * SCALE;
-	int ycoord = ctx->V[(opcode & 0x00F0) >> 4] * SCALE;
+	int xcoord = ctx->V[(opcode & 0x0F00) >> 8] * YACE_SCREEN_SCALE;
+	int ycoord = ctx->V[(opcode & 0x00F0) >> 4] * YACE_SCREEN_SCALE;
 	int height = opcode & 0x000F;
 
 	ctx->V[0xF] = 0;
@@ -333,26 +332,19 @@ void YACE_ExecuteDXYNOpcode(SCHIP8 *ctx, WORD opcode)
 		{
 			if (data & (1 << xpixelinv))
 			{
-				int x = (xpixel * SCALE) + xcoord;
-				int y = (yline * SCALE) + ycoord;
+				int x = (xpixel * YACE_SCREEN_SCALE) + xcoord;
+				int y = (yline * YACE_SCREEN_SCALE) + ycoord;
 
-				int color = 0;
-
-				// Collision here
 				if (ctx->Video[y][x][0] == 0)
-				{
-					color = 0xFF;
 					ctx->V[0xF] = 1;
-				}
 
-				// color the pixel
-				for (int i = 0; i < SCALE; i++)
+				for (int i = 0; i < YACE_SCREEN_SCALE; i++)
 				{
-					for (int j = 0; j < SCALE; j++)
+					for (int j = 0; j < YACE_SCREEN_SCALE; j++)
 					{
-						ctx->Video[y + i][x + j][0] = color;
-						ctx->Video[y + i][x + j][1] = color;
-						ctx->Video[y + i][x + j][2] = color;
+						ctx->Video[y + i][x + j][0] ^= 0xFF;
+						ctx->Video[y + i][x + j][1] ^= 0xFF;
+						ctx->Video[y + i][x + j][2] ^= 0xFF;
 					}
 				}
 
@@ -438,7 +430,7 @@ void YACE_DecodeFXNNOpcode(SCHIP8 *ctx, WORD opcode)
 
 			ctx->RAM[ctx->I + 0] = value / 100;
 			ctx->RAM[ctx->I + 1] = (value / 10) % 10;
-			ctx->RAM[ctx->I + 1] = value % 10;
+			ctx->RAM[ctx->I + 2] = value % 10;
 		} break;
 		// Stores V0 to VX in memory starting at address I.
 		// On the original interpreter, when the operation is done, I=I+X+1.
@@ -472,7 +464,7 @@ void YACE_ExecuteOpcode(SCHIP8 *ctx, WORD opcode)
 	// Since we have 0NNN-FNNN opcodes,
 	// we see the first letter first
 	// *********************************
-	switch (opcode & 0xf000)
+	switch (opcode & 0xF000)
 	{
 		case 0x0000: YACE_Decode0NNNOpcode(ctx, opcode); break;
 		case 0x1000: YACE_Execute1NNNOpcode(ctx, opcode); break;
@@ -564,15 +556,15 @@ void YACE_InitScreen(SCHIP8 *ctx)
 
 	ctx->Window = SDL_CreateWindow("Yace",
 		SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
-		YACE_SCREEN_WIDTH * YACE_SCREEN_SCALE, YACE_SCREEN_HEIGHT * YACE_SCREEN_SCALE,
+		YACE_SCREEN_WIDTH, YACE_SCREEN_HEIGHT,
 		SDL_WINDOW_OPENGL);
 
 	SDL_GL_CreateContext(ctx->Window);
 
-	glViewport(0, 0, YACE_SCREEN_WIDTH * YACE_SCREEN_SCALE, YACE_SCREEN_HEIGHT * YACE_SCREEN_SCALE);
+	glViewport(0, 0, YACE_SCREEN_WIDTH , YACE_SCREEN_HEIGHT );
 	glMatrixMode(GL_MODELVIEW);
 	glLoadIdentity();
-	glOrtho(0, YACE_SCREEN_WIDTH * YACE_SCREEN_SCALE, YACE_SCREEN_HEIGHT * YACE_SCREEN_SCALE, 0, -1.0, 1.0);
+	glOrtho(0, YACE_SCREEN_WIDTH, YACE_SCREEN_HEIGHT, 0, -1.0, 1.0);
 	glClearColor(0x40, 0x40, 0x40, 1.0);
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 	glShadeModel(GL_FLAT);
@@ -593,8 +585,8 @@ void YACE_Render(SCHIP8 *ctx)
 	glLoadIdentity();
 	glRasterPos2i(-1, 1);
 	glPixelZoom(1, -1);
-	glDrawPixels(YACE_SCREEN_WIDTH * YACE_SCREEN_SCALE,
-				 YACE_SCREEN_HEIGHT * YACE_SCREEN_SCALE,
+	glDrawPixels(YACE_SCREEN_WIDTH,
+				 YACE_SCREEN_HEIGHT,
 				 GL_RGB, GL_UNSIGNED_BYTE, ctx->Video);
 }
 
@@ -615,7 +607,7 @@ void YACE_Loop(SCHIP8 *ctx)
 	int done = 0;
 	unsigned int t2;
 	float update_rate = 1000 / 60;
-	float opcode_per_sec = 400 / 60;
+	float opcode_per_sec = 800 / 60;
 	unsigned int t = SDL_GetTicks();
 
 	while (!done)
@@ -634,6 +626,7 @@ void YACE_Loop(SCHIP8 *ctx)
 			for (i = 0; i < opcode_per_sec; i++)
 			{
 				WORD opcode = YACE_FetchOpcode(ctx);
+				printf("OPCODE: %04x\n", opcode);
 				YACE_ExecuteOpcode(ctx, opcode);
 			}
 
@@ -649,13 +642,14 @@ void YACE_Loop(SCHIP8 *ctx)
 int main(int argc, char *argv[])
 {
 	SCHIP8 *emu = (SCHIP8 *)malloc(sizeof(SCHIP8));
-	
-	if (argc < 1)
-		YACE_Message();
-	
+
 	srand(time(NULL));
 	// First reset the emulator state
 	YACE_Reset(emu);
+	
+	if (argc < 2)
+		YACE_Message();
+
 	// load the ROM in RAM starting from 0x200 until 0xfff
 	YACE_OpenROM(emu, argv[1]);
 	YACE_InitScreen(emu);
