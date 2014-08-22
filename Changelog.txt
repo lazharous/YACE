@@ -1,0 +1,11 @@
+0.3
+- Video now is supported through OpenGL textures
+
+0.2
+- YACE is running but doesn't work well with video.
+- All opcodes are completed
+- Basic audio
+
+0.1
+- YACE can now interpret a few opcodes
+- Basic skeleton created

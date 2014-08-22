@@ -48,7 +48,7 @@ typedef struct _SCHIP8
 	// Sound Timer, count down to 0 at 60Hz
 	WORD soundTimer;
 	// Video Screen
-	BYTE Video[YACE_SCREEN_WIDTH][YACE_SCREEN_WIDTH][3];
+	BYTE Video[64][32][3];
 	// Window for screen
 	SDL_Window *Window;
 } SCHIP8;
@@ -95,7 +95,7 @@ void YACE_DecodeFXNNOpcode(SCHIP8 *ctx, WORD opcode);
 // ***************
 void YACE_Message(void)
 {
-	printf("YACE v0.2 BUILD 140821\n"
+	printf("YACE v0.3 BUILD 140822\n"
 		   "Usage: yace ROM\n");
 }
 
@@ -145,39 +145,46 @@ WORD YACE_FetchOpcode(SCHIP8 *ctx)
 
 void YACE_Decode0NNNOpcode(SCHIP8 *ctx, WORD opcode)
 {
-	int i, j;
+	int x, y;
 
 	switch (opcode & 0xf)
 	{
 		// Clears the screen.
 		case 0x0:
 		{
-			for (i = 0; i < YACE_SCREEN_WIDTH; i++)
+			for (x = 0; x < 64; x++)
 			{
-				for (j = 0; j < YACE_SCREEN_HEIGHT; j++)
+				for (y = 0; y < 32; y++)
 				{
-					ctx->Video[j][i][0] = 0;
-					ctx->Video[j][i][1] = 0;
-					ctx->Video[j][i][2] = 0;
+					ctx->Video[x][y][0] = 0;
+					ctx->Video[x][y][1] = 0;
+					ctx->Video[x][y][2] = 0;
 				}
 			}
 		} break;
 		// Returns from a subroutine.
-		case 0xE: ctx->PC = ctx->Stack[ctx->SP--]; break;
+		case 0xE:
+		{
+			// Decrease the stack pointer first
+			ctx->SP--;
+			// then store jump
+			ctx->PC = ctx->Stack[ctx->SP];
+		} break;
 	}
 }
 
 // Jumps to address NNN.
 void YACE_Execute1NNNOpcode(SCHIP8 *ctx, WORD opcode)
 {
-	ctx->PC = (opcode & 0x0fff);
+	ctx->PC = (opcode & 0x0FFF);
 }
 
 // Calls subroutine at NNN.
 void YACE_Execute2NNNOpcode(SCHIP8 *ctx, WORD opcode)
 {
-	ctx->Stack[ctx->SP++] = ctx->PC;
-	ctx->PC = (opcode & 0x0fff);
+	ctx->Stack[ctx->SP] = ctx->PC;
+	ctx->SP++;
+	ctx->PC = (opcode & 0x0FFF);
 }
 
 // Skips the next instruction if VX equals NN.
@@ -315,39 +322,31 @@ void YACE_ExecuteCXNNOpcode(SCHIP8 *ctx, WORD opcode)
 // All drawing is XOR drawing (e.g. it toggles the screen pixels)
 void YACE_ExecuteDXYNOpcode(SCHIP8 *ctx, WORD opcode)
 {
-	int xcoord = ctx->V[(opcode & 0x0F00) >> 8] * YACE_SCREEN_SCALE;
-	int ycoord = ctx->V[(opcode & 0x00F0) >> 4] * YACE_SCREEN_SCALE;
+	int yline, xline;
+	int xcoord = ctx->V[(opcode & 0x0F00) >> 8];
+	int ycoord = ctx->V[(opcode & 0x00F0) >> 4];
 	int height = opcode & 0x000F;
 
 	ctx->V[0xF] = 0;
 
-	for (int yline = 0; yline < height; yline++)
+	for (yline = 0; yline < height; yline++)
 	{
+		// Get the pixel to draw
 		BYTE data = ctx->RAM[ctx->I + yline];
-
-		int xpixel = 0;
-		int xpixelinv = 7;
 		
-		for (xpixel = 0; xpixel < 8; xpixel++, xpixelinv--)
+		for (xline = 0; xline < 8; xline++)
 		{
-			if (data & (1 << xpixelinv))
+			if ((data & (128 >> xline)) != 0)
 			{
-				int x = (xpixel * YACE_SCREEN_SCALE) + xcoord;
-				int y = (yline * YACE_SCREEN_SCALE) + ycoord;
+				int x = (xline + xcoord) % 64;
+				int y = (yline + ycoord) % 32;
 
 				if (ctx->Video[y][x][0] == 0)
 					ctx->V[0xF] = 1;
 
-				for (int i = 0; i < YACE_SCREEN_SCALE; i++)
-				{
-					for (int j = 0; j < YACE_SCREEN_SCALE; j++)
-					{
-						ctx->Video[y + i][x + j][0] ^= 0xFF;
-						ctx->Video[y + i][x + j][1] ^= 0xFF;
-						ctx->Video[y + i][x + j][2] ^= 0xFF;
-					}
-				}
-
+				ctx->Video[y][x][0] ^= 0xFF;
+				ctx->Video[y][x][1] ^= 0xFF;
+				ctx->Video[y][x][2] ^= 0xFF;
 			}
 		}
 	}
@@ -552,6 +551,8 @@ int YACE_GetInput(SCHIP8 *ctx)
 
 void YACE_InitScreen(SCHIP8 *ctx)
 {
+	int x, y;
+
 	SDL_Init(SDL_INIT_VIDEO | SDL_INIT_EVENTS);
 
 	ctx->Window = SDL_CreateWindow("Yace",
@@ -561,18 +562,38 @@ void YACE_InitScreen(SCHIP8 *ctx)
 
 	SDL_GL_CreateContext(ctx->Window);
 
-	glViewport(0, 0, YACE_SCREEN_WIDTH , YACE_SCREEN_HEIGHT );
 	glMatrixMode(GL_MODELVIEW);
 	glLoadIdentity();
+	glViewport(0, 0, YACE_SCREEN_WIDTH , YACE_SCREEN_HEIGHT );
 	glOrtho(0, YACE_SCREEN_WIDTH, YACE_SCREEN_HEIGHT, 0, -1.0, 1.0);
 	glClearColor(0x40, 0x40, 0x40, 1.0);
-	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-	glShadeModel(GL_FLAT);
+
 	glEnable(GL_TEXTURE_2D);
 	glDisable(GL_BLEND);
 	glDisable(GL_DEPTH_TEST);
 	glDisable(GL_CULL_FACE);
 	glDisable(GL_DITHER);
+
+	for (x = 0; x < 64; x++)
+	{
+		for (y = 0; y < 32; y++)
+		{
+			ctx->Video[x][y][0] = 0;
+			ctx->Video[x][y][1] = 0;
+			ctx->Video[x][y][2] = 0;
+		}
+	}
+
+	// ******************************************
+	// Create the texture using the video memory
+	// ******************************************
+	glTexImage2D(GL_TEXTURE_2D, 0, 3, 64, 32,
+		0, GL_RGB, GL_UNSIGNED_BYTE, (GLvoid*)ctx->Video);
+
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP);
 }
 
 void YACE_BeginScene(void)
@@ -582,12 +603,17 @@ void YACE_BeginScene(void)
 
 void YACE_Render(SCHIP8 *ctx)
 {
-	glLoadIdentity();
-	glRasterPos2i(-1, 1);
-	glPixelZoom(1, -1);
-	glDrawPixels(YACE_SCREEN_WIDTH,
-				 YACE_SCREEN_HEIGHT,
-				 GL_RGB, GL_UNSIGNED_BYTE, ctx->Video);
+	// fill the texture now
+	glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0,
+		64, 32,
+		GL_RGB, GL_UNSIGNED_BYTE, (GLvoid*)ctx->Video);
+
+	glBegin(GL_QUADS);
+		glTexCoord2d(0.0, 0.0);	glVertex2d(0.0, 0.0);
+		glTexCoord2d(1.0, 0.0);	glVertex2d(YACE_SCREEN_WIDTH, 0.0);
+		glTexCoord2d(1.0, 1.0);	glVertex2d(YACE_SCREEN_WIDTH, YACE_SCREEN_HEIGHT);
+		glTexCoord2d(0.0, 1.0);	glVertex2d(0.0, YACE_SCREEN_HEIGHT);
+	glEnd();
 }
 
 void YACE_EndScene(SCHIP8 *ctx)
@@ -607,7 +633,7 @@ void YACE_Loop(SCHIP8 *ctx)
 	int done = 0;
 	unsigned int t2;
 	float update_rate = 1000 / 60;
-	float opcode_per_sec = 800 / 60;
+	float opcode_per_sec = 400 / 60;
 	unsigned int t = SDL_GetTicks();
 
 	while (!done)
