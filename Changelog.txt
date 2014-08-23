@@ -1,3 +1,11 @@
+0.6
+- Changed the way the texture is stored and updated
+- Fixed the video rendering
+- Redraw-signal when the opcode DXYN is triggered
+
+0.5
+- DXYN opcode changed (int to WORD for some vars)
+
 0.4
 - Support for font and input modified
 

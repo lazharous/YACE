@@ -38,6 +38,8 @@
 // typedef unsigned int WORD;
 // typedef unsigned char BYTE;
 
+int g_redrawSignal;
+
 BYTE g_font[80] =
 {
 	0xF0, 0x90, 0x90, 0x90, 0xF0, //0
@@ -132,13 +134,15 @@ void YACE_DecodeFXNNOpcode(SCHIP8 *ctx, WORD opcode);
 // ***************
 void YACE_Message(void)
 {
-	printf("YACE v0.5 BUILD 140822\n"
+	printf("YACE v0.6 BUILD 140823\n"
 		   "Usage: yace ROM\n");
 }
 
 void YACE_Reset(SCHIP8 *ctx)
 {
 	int i;
+
+	g_redrawSignal = 0;
 
 	memset(ctx->Stack, 0, YACE_STACK_SIZE);
 	memset(ctx->RAM, 0, YACE_ROM_SIZE);
@@ -391,6 +395,8 @@ void YACE_ExecuteDXYNOpcode(SCHIP8 *ctx, WORD opcode)
 				ctx->Video[y][x][0] ^= 0xFF;
 				ctx->Video[y][x][1] ^= 0xFF;
 				ctx->Video[y][x][2] ^= 0xFF;
+
+				g_redrawSignal = 1;
 			}
 		}
 	}
@@ -631,7 +637,7 @@ void YACE_InitScreen(SCHIP8 *ctx)
 	// ******************************************
 	// Create the texture using the video memory
 	// ******************************************
-	glTexImage2D(GL_TEXTURE_2D, 0, 3, 64, 32,
+	glTexImage2D(GL_TEXTURE_2D, 0, 3, 32, 64,
 		0, GL_RGB, GL_UNSIGNED_BYTE, (GLvoid*)ctx->Video);
 
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
@@ -649,14 +655,14 @@ void YACE_Render(SCHIP8 *ctx)
 {
 	// fill the texture now
 	glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0,
-		64, 32,
+		32, 64,
 		GL_RGB, GL_UNSIGNED_BYTE, (GLvoid*)ctx->Video);
 
 	glBegin(GL_QUADS);
 		glTexCoord2d(0.0, 0.0);	glVertex2d(0.0, 0.0);
 		glTexCoord2d(1.0, 0.0);	glVertex2d(YACE_SCREEN_WIDTH, 0.0);
-		glTexCoord2d(1.0, 1.0);	glVertex2d(YACE_SCREEN_WIDTH, YACE_SCREEN_HEIGHT);
-		glTexCoord2d(0.0, 1.0);	glVertex2d(0.0, YACE_SCREEN_HEIGHT);
+		glTexCoord2d(1.0, 1.0);	glVertex2d(YACE_SCREEN_WIDTH, YACE_SCREEN_WIDTH);
+		glTexCoord2d(0.0, 1.0);	glVertex2d(0.0, YACE_SCREEN_WIDTH);
 	glEnd();
 }
 
@@ -702,9 +708,12 @@ void YACE_Loop(SCHIP8 *ctx)
 
 			t = t2;
 
-			YACE_BeginScene();
-			YACE_Render(ctx);
-			YACE_EndScene(ctx);
+			if (g_redrawSignal)
+			{
+				YACE_BeginScene();
+				YACE_Render(ctx);
+				YACE_EndScene(ctx);
+			}
 		}
 	}
 }
