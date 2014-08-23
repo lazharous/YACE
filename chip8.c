@@ -142,8 +142,10 @@ void YACE_Reset(SCHIP8 *ctx)
 {
 	int i;
 
-	g_redrawSignal = 0;
+	// Clear the screen
+	g_redrawSignal = 1;
 
+	memset(ctx->Video, 0, (64 * 32 * 3));
 	memset(ctx->Stack, 0, YACE_STACK_SIZE);
 	memset(ctx->RAM, 0, YACE_ROM_SIZE);
 
@@ -491,9 +493,10 @@ void YACE_DecodeFXNNOpcode(SCHIP8 *ctx, WORD opcode)
 			for (i = 0; i <= N; i++)
 				ctx->RAM[i + ctx->I] = ctx->V[i];
 
-			ctx->I += ctx->V[N] + 1;
+			ctx->I = ctx->I + N + 1;
 		} break;
 		// Fills V0 to VX with values from memory starting at address I.
+		// On the original interpreter, when the operation is done, I=I+X+1.
 		case 0x65:
 		{
 			int i;
@@ -502,7 +505,7 @@ void YACE_DecodeFXNNOpcode(SCHIP8 *ctx, WORD opcode)
 			for (i = 0; i <= N; i++)
 				ctx->V[i] = ctx->RAM[i + ctx->I];
 
-			ctx->I += ctx->V[N] + 1;
+			ctx->I = ctx->I + N + 1;
 		} break;
 	}
 }
